@@ -53,9 +53,20 @@ def resize_image(img, min_side=800, max_side=1333):
 
 
 def preprocess_image(
-    image_path, min_side=800, max_side=1333,
+        image_path, min_side=800, max_side=1333,
 ):
     image = read_image_bgr(image_path)
     image = _preprocess_image(image)
     image, scale = resize_image(image, min_side=min_side, max_side=max_side)
     return image, scale
+
+
+def draw_labels_and_boxes(frame, prediction_results, color=(0, 255, 0)):
+    for result in prediction_results:
+        box = result.get('box')
+        label = result.get('label')
+        if box is not None and label is not None:
+            x, y, w, h = box
+            frame = cv2.rectangle(frame, (x, y), (w, h), color, 1)
+            frame = cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_COMPLEX, 1, color)
+    return frame
