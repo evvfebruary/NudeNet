@@ -5,8 +5,9 @@ import logging
 import numpy as np
 import onnxruntime
 from progressbar import progressbar
+from collections import defaultdict
 
-from .detector_utils import preprocess_image
+from .detector_utils import preprocess_image, draw_labels_and_boxes
 from .video_utils import get_interest_frames_from_video
 
 
@@ -29,6 +30,7 @@ FILE_URLS = {
 class Detector:
     detection_model = None
     classes = None
+    video_extension = None
 
     def __init__(self, model_name="default"):
         """
@@ -58,12 +60,20 @@ class Detector:
 
         self.classes = [c.strip() for c in open(classes_path).readlines() if c.strip()]
 
-    def detect_video(
-        self, video_path, mode="default", min_prob=0.6, batch_size=2, show_progress=True
-    ):
-        frame_indices, frames, fps, video_length = get_interest_frames_from_video(
-            video_path
-        )
+    @staticmethod
+    def get_frames(video_path, filter_similar=True):
+        """
+        Wrapper for get all or only interested frames
+        :param video_path: path ot video
+        :param filter_similar: condition for turn onn / off similar frames filter
+        :return: all or only interests frames with video meta data ( fps, length )
+        """
+        args = {} if filter_similar else {'skip_n_frames': 0, 'frame_similarity_threshold': 1}
+        return get_interest_frames_from_video(video_path, **args)
+
+    def detect_video(self, video_path, mode="default", min_prob=0.6, batch_size=2,
+                     show_progress=True, filter_similar=True, output_path=None):
+        frame_indices, frames, fps, video_length = self.get_frames(video_path, filter_similar)
         logging.debug(
             f"VIDEO_PATH: {video_path}, FPS: {fps}, Important frame indices: {frame_indices}, Video length: {video_length}"
         )
@@ -82,7 +92,7 @@ class Detector:
                 "video_length": video_length,
                 "video_path": video_path,
             },
-            "preds": {},
+            "preds": defaultdict(list),
         }
 
         progress_func = progressbar
@@ -104,16 +114,14 @@ class Detector:
                 labels = [op for op in outputs if op.dtype == "int32"][0]
                 scores = [op for op in outputs if isinstance(op[0][0], np.float32)][0]
                 boxes = [op for op in outputs if isinstance(op[0][0], np.ndarray)][0]
-
+                print(boxes, scale)
                 boxes /= scale
-                for frame_index, frame_boxes, frame_scores, frame_labels in zip(
-                    frame_indices, boxes, scores, labels
+                for frame_index, frame_boxes, frame_scores, frame_labels, frame in zip(
+                        frame_indices, boxes, scores, labels, frames
                 ):
-                    if frame_index not in all_results["preds"]:
-                        all_results["preds"][frame_index] = []
 
                     for box, score, label in zip(
-                        frame_boxes, frame_scores, frame_labels
+                            frame_boxes, frame_scores, frame_labels
                     ):
                         if score < min_prob:
                             continue
@@ -127,6 +135,8 @@ class Detector:
                                 "label": label,
                             }
                         )
+                    frame_with_prediction_info = draw_labels_and_boxes(frame, all_results['preds'][frame_index])
+                    cv2.imwrite(f"./frames/frame_{frame_index}.png", frame_with_prediction_info)
 
         return all_results
 
@@ -178,7 +188,7 @@ class Detector:
             boxes = [i["box"] for i in boxes]
 
         for box in boxes:
-            part = image[box[1] : box[3], box[0] : box[2]]
+            part = image[box[1]: box[3], box[0]: box[2]]
             image = cv2.rectangle(
                 image, (box[0], box[1]), (box[2], box[3]), (0, 0, 0), cv2.FILLED
             )
