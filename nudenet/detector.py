@@ -80,8 +80,8 @@ class Detector:
 
         if output_path is not None:
             fourcc_code = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
-            print(fourcc_code, fps, (width, height))
-            video_writer = cv2.VideoWriter(output_path, fourcc_code, fps, (width, height))
+            print(fourcc_code, fps, (751, 1333))
+            video_writer = cv2.VideoWriter(output_path, fourcc_code, fps, (751, 1333))
 
         if mode == "fast":
             frames = [
@@ -144,6 +144,10 @@ class Detector:
                         )
                         if output_path is not None:
                             frame_with_prediction_info = draw_labels_and_boxes(frame, box.astype(int).tolist(), label)
+                            print(type(frame_with_prediction_info))
+                            # print(frame_with_prediction_info)
+                            print(frame_with_prediction_info.shape)
+                            cv2.imwrite(f"./frames/frame_{frame_index}.jpg", frame_with_prediction_info)
                             video_writer.write(frame_with_prediction_info)
         if output_path is not None:
             video_writer.release()
