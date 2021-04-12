@@ -7,6 +7,15 @@ import logging
 from skimage import metrics as skimage_metrics
 
 
+def get_original_params(input_path):
+    video = cv2.VideoCapture('/Users/evv/PycharmProjects/NudeNet/short_test_video.ts')
+    fourcc_code = int(video.get(cv2.CAP_PROP_FOURCC))
+    width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    video.release()
+    return fourcc_code, width, height
+
+
 def is_similar_frame(f1, f2, resize_to=(64, 64), thresh=0.5, return_score=False):
     thresh = float(os.getenv("FRAME_SIMILARITY_THRESH", thresh))
 
@@ -49,22 +58,26 @@ def is_similar_frame(f1, f2, resize_to=(64, 64), thresh=0.5, return_score=False)
 
 
 def get_interest_frames_from_video(
-    video_path,
-    frame_similarity_threshold=0.5,
-    similarity_context_n_frames=3,
-    skip_n_frames=0.5,
-    output_frames_to_dir=None,
+        video_path,
+        frame_similarity_threshold=0.5,
+        similarity_context_n_frames=3,
+        skip_n_frames=0.5,
+        output_frames_to_dir=None,
 ):
     skip_n_frames = float(os.getenv("SKIP_N_FRAMES", skip_n_frames))
 
     important_frames = []
     fps = 0
     video_length = 0
+    width = 0
+    height = 0
 
     try:
         video = cv2.VideoCapture(video_path)
         fps = video.get(cv2.CAP_PROP_FPS)
         length = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         if skip_n_frames < 1:
             skip_n_frames = int(skip_n_frames * fps)
@@ -86,10 +99,10 @@ def get_interest_frames_from_video(
 
             found_similar = False
             for context_frame_i, context_frame in reversed(
-                important_frames[-1 * similarity_context_n_frames :]
+                    important_frames[-1 * similarity_context_n_frames:]
             ):
                 if is_similar_frame(
-                    context_frame, current_frame, thresh=frame_similarity_threshold
+                        context_frame, current_frame, thresh=frame_similarity_threshold
                 ):
                     logging.debug(f"{frame_i} is similar to {context_frame_i}")
                     found_similar = True
@@ -120,6 +133,8 @@ def get_interest_frames_from_video(
         [i[1] for i in important_frames],
         fps,
         video_length,
+        width,
+        height
     )
 
 

@@ -8,7 +8,7 @@ from progressbar import progressbar
 from collections import defaultdict
 
 from .detector_utils import preprocess_image, draw_labels_and_boxes
-from .video_utils import get_interest_frames_from_video
+from .video_utils import get_interest_frames_from_video, get_original_params
 
 
 def dummy(x):
@@ -73,10 +73,16 @@ class Detector:
 
     def detect_video(self, video_path, mode="default", min_prob=0.6, batch_size=2,
                      show_progress=True, filter_similar=True, output_path=None):
-        frame_indices, frames, fps, video_length = self.get_frames(video_path, filter_similar)
+        frame_indices, frames, fps, video_length, width, height = self.get_frames(video_path, filter_similar)
         logging.debug(
-            f"VIDEO_PATH: {video_path}, FPS: {fps}, Important frame indices: {frame_indices}, Video length: {video_length}"
+            f"VIDEO_PATH: {video_path}, FPS: {fps}, Important frame indices: {frame_indices}, Video length: {video_length}, Video size: {width}x{height}"
         )
+
+        if output_path is not None:
+            fourcc_code = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
+            print(fourcc_code, fps, (width, height))
+            video_writer = cv2.VideoWriter(output_path, fourcc_code, fps, (width, height))
+
         if mode == "fast":
             frames = [
                 preprocess_image(frame, min_side=480, max_side=800) for frame in frames
@@ -114,8 +120,8 @@ class Detector:
                 labels = [op for op in outputs if op.dtype == "int32"][0]
                 scores = [op for op in outputs if isinstance(op[0][0], np.float32)][0]
                 boxes = [op for op in outputs if isinstance(op[0][0], np.ndarray)][0]
-                print(boxes, scale)
-                boxes /= scale
+
+                # boxes /= scale
                 for frame_index, frame_boxes, frame_scores, frame_labels, frame in zip(
                         frame_indices, boxes, scores, labels, frames
                 ):
@@ -125,19 +131,22 @@ class Detector:
                     ):
                         if score < min_prob:
                             continue
-                        box = box.astype(int).tolist()
+                        scaling_box = box / scale
+                        scaling_box = scaling_box.astype(int).tolist()
                         label = self.classes[label]
 
                         all_results["preds"][frame_index].append(
                             {
-                                "box": [int(c) for c in box],
+                                "box": [int(c) for c in scaling_box],
                                 "score": float(score),
                                 "label": label,
                             }
                         )
-                    frame_with_prediction_info = draw_labels_and_boxes(frame, all_results['preds'][frame_index])
-                    cv2.imwrite(f"./frames/frame_{frame_index}.png", frame_with_prediction_info)
-
+                        if output_path is not None:
+                            frame_with_prediction_info = draw_labels_and_boxes(frame, box.astype(int).tolist(), label)
+                            video_writer.write(frame_with_prediction_info)
+        if output_path is not None:
+            video_writer.release()
         return all_results
 
     def detect(self, img_path, mode="default", min_prob=None):

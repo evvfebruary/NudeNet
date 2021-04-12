@@ -61,12 +61,10 @@ def preprocess_image(
     return image, scale
 
 
-def draw_labels_and_boxes(frame, prediction_results, color=(0, 255, 0)):
-    for result in prediction_results:
-        box = result.get('box')
-        label = result.get('label')
-        if box is not None and label is not None:
-            x, y, w, h = box
-            frame = cv2.rectangle(frame, (x, y), (w, h), color, 1)
-            frame = cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_COMPLEX, 1, color)
+def draw_labels_and_boxes(frame, box, label, color=(0, 255, 0)):
+    if box is not None and label is not None:
+        print(box, label)
+        x, y, w, h = box
+        frame = cv2.rectangle(frame, (x, y), (w, h), color, 1)
+        frame = cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_COMPLEX, 1, color)
     return frame
